@@ -1,0 +1,86 @@
+{% extends "layout.html" %}
+{% block title %}Sessions{% endblock %}
+{% block page_title %}<i class="bi bi-clock-history"></i> الجلسات النشطة{% endblock %}
+{% block content %}
+<div class="card p-3 mb-3">
+    <div class="row g-2">
+        <div class="col-md-8">
+            <p class="mb-0 text-muted"><i class="bi bi-info-circle"></i> الجلسات تُصدر بعد المصادقة وتنتهي بعد 30 دقيقة.</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <button class="btn btn-warning" onclick="cleanup()">
+                <i class="bi bi-trash"></i> تنظيف المنتهية
+            </button>
+            <button class="btn btn-outline-secondary" onclick="loadSessions()">
+                <i class="bi bi-arrow-clockwise"></i> تحديث
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr>
+                <th>TOKEN</th><th>DEVICE</th><th>ISSUED</th><th>EXPIRES</th><th>STATUS</th><th>ACTIONS</th>
+            </tr></thead>
+            <tbody id="sessions-tbody"><tr><td colspan="6" class="text-center p-4 text-muted">جاري التحميل...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadSessions() {
+    const sessions = await api('/api/sessions');
+    const tbody = $('sessions-tbody');
+    tbody.innerHTML = '';
+    if (sessions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-muted">لا جلسات</td></tr>';
+        return;
+    }
+    sessions.forEach(s => {
+        const expired = new Date(s.expires_at) < new Date();
+        const status = s.revoked ? 'REVOKED' : (expired ? 'EXPIRED' : 'ACTIVE');
+        const badge = s.revoked ? 'badge-REVOKED' : (expired ? 'badge-SUSPENDED' : 'badge-ACTIVE');
+        tbody.innerHTML += `
+            <tr>
+                <td><code>${s.token_masked}</code></td>
+                <td><code>${s.device_id}</code></td>
+                <td class="small text-muted">${new Date(s.issued_at).toLocaleString('ar-EG')}</td>
+                <td class="small text-muted">${new Date(s.expires_at).toLocaleString('ar-EG')}</td>
+                <td><span class="badge ${badge}">${status}</span></td>
+                <td>
+                    ${!s.revoked && !expired ? `
+                        <button class="btn btn-sm btn-danger" onclick="revoke('${s.device_id}')" title="إلغاء كل جلسات الجهاز">
+                            <i class="bi bi-x-octagon"></i>
+                        </button>
+                    ` : '-'}
+                </td>
+            </tr>`;
+    });
+}
+
+async function revoke(device_id) {
+    if (!confirm(`إلغاء كل جلسات ${device_id}؟`)) return;
+    const res = await api('/api/sessions/revoke', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({device_id})
+    });
+    if (res.success) loadSessions();
+    else alert('فشل: ' + res.error);
+}
+
+async function cleanup() {
+    if (!confirm('حذف كل الجلسات المنتهية والملغاة؟')) return;
+    const res = await api('/api/sessions/cleanup', {method: 'POST'});
+    if (res.success) {
+        alert(`تم حذف ${res.deleted} جلسة`);
+        loadSessions();
+    }
+}
+
+loadSessions();
+setInterval(loadSessions, 5000);
+</script>
+{% endblock %}

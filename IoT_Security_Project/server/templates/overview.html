@@ -1,0 +1,55 @@
+﻿{% extends "layout.html" %}
+{% block title %}Overview{% endblock %}
+{% block page_title %}<i class="bi bi-speedometer2"></i> نظرة عامة{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card stat-card"><div class="stat-label">إجمالي الأجهزة</div><div class="stat-value stat-primary" id="stat-total">-</div></div></div>
+    <div class="col-md-3"><div class="card stat-card"><div class="stat-label">نشطة</div><div class="stat-value stat-active" id="stat-active">-</div></div></div>
+    <div class="col-md-3"><div class="card stat-card"><div class="stat-label">مفاتيح نشطة</div><div class="stat-value stat-primary" id="stat-keys">-</div></div></div>
+    <div class="col-md-3"><div class="card stat-card"><div class="stat-label">تنبيهات (آخر ساعة)</div><div class="stat-value stat-alerts" id="stat-alerts">-</div></div></div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="card p-3"><div class="section-title"><i class="bi bi-pie-chart"></i> حالات الأجهزة</div><canvas id="chart-status" height="200"></canvas></div></div>
+    <div class="col-md-8"><div class="card p-3"><div class="section-title"><i class="bi bi-journal-text"></i> آخر الأحداث</div>
+        <div style="max-height:400px;overflow-y:auto;"><table class="table table-sm"><thead><tr><th>الوقت</th><th>الجهاز</th><th>الحدث</th></tr></thead><tbody id="recent-events"></tbody></table></div>
+    </div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadOverview() {
+    const s = await api('/api/summary');
+    $('stat-total').textContent = s.total_devices;
+    $('stat-active').textContent = s.active;
+    $('stat-alerts').textContent = s.alerts_1h;
+    $('stat-keys').textContent = s.active_keys || 0;
+
+    if (window.statusChart) window.statusChart.destroy();
+    window.statusChart = new Chart($('chart-status'), {
+        type: 'doughnut',
+        data: {
+            labels: ['ACTIVE','LOCKED','SUSPENDED','REVOKED'],
+            datasets: [{ data: [s.active, s.locked, s.suspended, s.revoked],
+                backgroundColor: ['#22c55e','#f59e0b','#ef4444','#6b7280'], borderWidth: 0 }]
+        },
+        options: { plugins: { legend: { labels: { color: '#e2e8f0' } } } }
+    });
+
+    const logs = await api('/api/logs?limit=15');
+    const tb = $('recent-events');
+    tb.innerHTML = '';
+    logs.forEach(l => {
+        const color = l.event_type.includes('FAILED') || l.event_type.includes('BLOCKED') ? 'text-danger' :
+                      l.event_type.includes('SUCCESS') ? 'text-success' : 'text-info';
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td class="small text-muted">' + new Date(l.timestamp).toLocaleTimeString('ar-EG') + '</td><td><code>' + l.device_id + '</code></td><td class="' + color + ' small">' + l.event_type + '</td>';
+        tb.appendChild(tr);
+    });
+}
+loadOverview();
+setInterval(loadOverview, 5000);
+</script>
+{% endblock %}

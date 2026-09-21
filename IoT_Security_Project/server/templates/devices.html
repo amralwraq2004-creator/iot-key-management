@@ -1,0 +1,433 @@
+{% extends "layout.html" %}
+{% block title %}Devices{% endblock %}
+{% block page_title %}<i class="bi bi-hdd-network"></i> الأجهزة{% endblock %}
+
+{% block content %}
+
+<!-- Toolbar -->
+<div class="card p-3 mb-3">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+            <div class="input-group">
+                <span class="input-group-text bg-dark border-secondary text-secondary">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input type="text" id="search-input" class="form-control bg-dark text-light border-secondary" placeholder="بحث عن جهاز...">
+            </div>
+        </div>
+        <div class="col-md-3">
+            <select id="filter-status" class="form-select bg-dark text-light border-secondary">
+                <option value="">كل الحالات</option>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="LOCKED">LOCKED</option>
+                <option value="SUSPENDED">SUSPENDED</option>
+                <option value="REVOKED">REVOKED</option>
+            </select>
+        </div>
+        <div class="col-md-5 text-end">
+            <button class="btn btn-primary" onclick="showRegisterModal()">
+                <i class="bi bi-plus-circle"></i> تسجيل جهاز جديد
+            </button>
+            <button class="btn btn-outline-secondary" onclick="loadDevices()">
+                <i class="bi bi-arrow-clockwise"></i> تحديث
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Devices Table -->
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>DEVICE_ID</th>
+                    <th>STATUS</th>
+                    <th>FAILED</th>
+                    <th>UPDATED</th>
+                    <th style="width:340px;">ACTIONS</th>
+                </tr>
+            </thead>
+            <tbody id="devices-tbody">
+                <tr><td colspan="5" class="text-center p-4 text-muted">جاري التحميل...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title"><i class="bi bi-info-circle"></i> تفاصيل الجهاز</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-sm">
+          <tbody id="details-body"></tbody>
+        </table>
+        <hr>
+        <h6 class="text-info"><i class="bi bi-journal-text"></i> آخر 10 أحداث</h6>
+        <div style="max-height:250px;overflow-y:auto;">
+          <table class="table table-sm">
+            <tbody id="details-logs"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Action Modal (Reactivate/Suspend/Revoke/Reset) -->
+<div class="modal fade" id="actionModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="actionTitle">Action</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="actionDeviceInfo" class="text-muted"></p>
+        <div id="actionExtra" style="display:none">
+          <label class="form-label">كلمة المرور الجديدة</label>
+          <input type="text" id="actionPassword" class="form-control bg-dark text-light border-secondary">
+        </div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+        <button class="btn btn-danger" id="actionConfirm">تأكيد</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Register Modal -->
+<div class="modal fade" id="registerModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title"><i class="bi bi-plus-circle"></i> تسجيل جهاز جديد</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Device ID</label>
+          <input type="text" id="reg-device-id" class="form-control bg-dark text-light border-secondary" placeholder="مثال: ESP32-03">
+          <small class="text-muted">استخدم أحرف إنجليزية وأرقام وشرطات فقط</small>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Credential (كلمة المرور)</label>
+          <input type="text" id="reg-credential" class="form-control bg-dark text-light border-secondary" placeholder="كلمة مرور قوية">
+        </div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+        <button class="btn btn-primary" onclick="registerDevice()">تسجيل</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light border-danger">
+      <div class="modal-header border-danger">
+        <h5 class="modal-title text-danger">
+          <i class="bi bi-exclamation-triangle-fill"></i> حذف نهائي
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger">
+          <strong>⚠️ تحذير:</strong> هذا الإجراء لا يمكن التراجع عنه!
+        </div>
+        <p>سيتم حذف الجهاز <code id="delete-device-id"></code> وكل ما يتعلق به:</p>
+        <ul>
+          <li>المفاتيح المشفّرة</li>
+          <li>الجلسات النشطة</li>
+          <li>الأسرار في الخزنة</li>
+          <li>أكواد التزويد</li>
+          <li>قراءات الحساسات والمقاييس</li>
+          <li>الصلاحيات</li>
+        </ul>
+        <p class="text-warning">
+          <i class="bi bi-info-circle"></i> سيُحفظ <strong>Audit Log</strong> فقط للسجل التاريخي.
+        </p>
+        <div class="mb-3">
+          <label class="form-label">
+            اكتب <strong id="delete-confirm-target" class="text-danger"></strong> للتأكيد:
+          </label>
+          <input type="text" id="delete-confirm-input" class="form-control bg-dark text-light border-danger" placeholder="اكتب اسم الجهاز هنا" autocomplete="off">
+        </div>
+      </div>
+      <div class="modal-footer border-danger">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+        <button class="btn btn-danger" id="delete-confirm-btn" onclick="executeDelete()" disabled>
+          <i class="bi bi-trash"></i> حذف نهائي
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allDevices = [];
+let pendingAction = null;
+let deleteTargetDevice = null;
+
+const detailsModal = new bootstrap.Modal($('detailsModal'));
+const actionModal = new bootstrap.Modal($('actionModal'));
+const registerModal = new bootstrap.Modal($('registerModal'));
+const deleteModal = new bootstrap.Modal($('deleteModal'));
+
+// ============================================================
+// Load Devices
+// ============================================================
+async function loadDevices() {
+    try {
+        allDevices = await api('/api/devices');
+        renderDevices();
+    } catch (e) {
+        $('devices-tbody').innerHTML = '<tr><td colspan="5" class="text-danger text-center p-4">خطأ في التحميل</td></tr>';
+    }
+}
+
+function renderDevices() {
+    const search = $('search-input').value.toLowerCase();
+    const statusFilter = $('filter-status').value;
+
+    const filtered = allDevices.filter(d => {
+        const matchesSearch = !search || d.device_id.toLowerCase().includes(search);
+        const matchesStatus = !statusFilter || d.status === statusFilter;
+        return matchesSearch && matchesStatus;
+    });
+
+    const tbody = $('devices-tbody');
+    tbody.innerHTML = '';
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-muted">لا توجد أجهزة مطابقة</td></tr>';
+        return;
+    }
+
+    filtered.forEach(d => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><code>${d.device_id}</code></td>
+            <td><span class="badge badge-${d.status}">${d.status}</span></td>
+            <td>${d.failed_attempts || 0}</td>
+            <td class="small text-muted">${d.updated_at ? new Date(d.updated_at).toLocaleString('ar-EG') : '-'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-info" onclick="viewDetails('${d.device_id}')" title="تفاصيل">
+                    <i class="bi bi-eye"></i>
+                </button>
+                <button class="btn btn-sm btn-success" onclick="doAction('reactivate','${d.device_id}')" title="إعادة تفعيل">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <button class="btn btn-sm btn-warning" onclick="doAction('suspend','${d.device_id}')" title="تعليق">
+                    <i class="bi bi-pause-circle"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="doAction('revoke','${d.device_id}')" title="إبطال">
+                    <i class="bi bi-x-octagon"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="doAction('reset-credential','${d.device_id}')" title="إعادة تعيين كلمة المرور">
+                    <i class="bi bi-key"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${d.device_id}')" title="حذف نهائي">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// ============================================================
+// Filters
+// ============================================================
+$('search-input').addEventListener('input', renderDevices);
+$('filter-status').addEventListener('change', renderDevices);
+
+// ============================================================
+// View Details
+// ============================================================
+async function viewDetails(deviceId) {
+    try {
+        const dev = await api(`/api/devices/${deviceId}`);
+        const tbody = $('details-body');
+        tbody.innerHTML = '';
+
+        const fields = [
+            ['Device ID', dev.device_id],
+            ['Status', dev.status],
+            ['Failed Attempts', dev.failed_attempts || 0],
+            ['Created At', dev.created_at ? new Date(dev.created_at).toLocaleString('ar-EG') : '-'],
+            ['Updated At', dev.updated_at ? new Date(dev.updated_at).toLocaleString('ar-EG') : '-'],
+            ['Suspended At', dev.suspended_at ? new Date(dev.suspended_at).toLocaleString('ar-EG') : '-'],
+            ['Lockout Until', dev.lockout_until ? new Date(dev.lockout_until).toLocaleString('ar-EG') : '-'],
+        ];
+
+        fields.forEach(([k, v]) => {
+            tbody.innerHTML += `<tr><th class="text-muted" style="width:180px;">${k}</th><td>${v}</td></tr>`;
+        });
+
+        // Load last 10 logs
+        const logs = await api(`/api/logs?device_id=${deviceId}&limit=10`);
+        const logsBody = $('details-logs');
+        logsBody.innerHTML = '';
+        logs.forEach(l => {
+            const color = l.event_type.includes('FAILED') || l.event_type.includes('BLOCKED') ? 'text-danger' :
+                          l.event_type.includes('SUCCESS') ? 'text-success' : 'text-info';
+            logsBody.innerHTML += `
+                <tr>
+                    <td class="small text-muted" style="width:140px;">${new Date(l.timestamp).toLocaleTimeString('ar-EG')}</td>
+                    <td><code class="${color}">${l.event_type}</code></td>
+                    <td class="small">${l.details || ''}</td>
+                </tr>
+            `;
+        });
+
+        detailsModal.show();
+    } catch (e) {
+        alert('خطأ في تحميل التفاصيل: ' + e.message);
+    }
+}
+
+// ============================================================
+// Actions (Reactivate/Suspend/Revoke/Reset)
+// ============================================================
+function doAction(action, deviceId) {
+    pendingAction = { action, device_id: deviceId };
+
+    const titles = {
+        'reactivate': 'إعادة تفعيل الجهاز',
+        'suspend': 'تعليق الجهاز',
+        'revoke': 'إبطال الجهاز',
+        'reset-credential': 'إعادة تعيين كلمة المرور',
+    };
+
+    $('actionTitle').textContent = titles[action] || action;
+    $('actionDeviceInfo').textContent = `الجهاز: ${deviceId}`;
+    $('actionExtra').style.display = (action === 'reset-credential') ? 'block' : 'none';
+    $('actionPassword').value = '';
+    actionModal.show();
+}
+
+$('actionConfirm').addEventListener('click', async () => {
+    if (!pendingAction) return;
+
+    const body = Object.assign({}, pendingAction);
+    if (pendingAction.action === 'reset-credential') {
+        body.new_password = $('actionPassword').value;
+        if (!body.new_password) { alert('أدخل كلمة المرور'); return; }
+    }
+
+    const res = await api('/api/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+    actionModal.hide();
+    if (res.success) {
+        loadDevices();
+    } else {
+        alert('فشل: ' + (res.error || 'unknown'));
+    }
+});
+
+// ============================================================
+// Register Device
+// ============================================================
+function showRegisterModal() {
+    $('reg-device-id').value = '';
+    $('reg-credential').value = '';
+    registerModal.show();
+}
+
+async function registerDevice() {
+    const device_id = $('reg-device-id').value.trim();
+    const credential = $('reg-credential').value.trim();
+
+    if (!device_id || !credential) {
+        alert('املأ كل الحقول');
+        return;
+    }
+
+    const res = await api('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id, credential })
+    });
+
+    if (res.success) {
+        registerModal.hide();
+        loadDevices();
+    } else {
+        alert('فشل: ' + (res.error || 'unknown'));
+    }
+}
+
+// ============================================================
+// Delete Device
+// ============================================================
+function confirmDelete(deviceId) {
+    deleteTargetDevice = deviceId;
+
+    $('delete-device-id').textContent = deviceId;
+    $('delete-confirm-target').textContent = deviceId;
+    $('delete-confirm-input').value = '';
+    $('delete-confirm-btn').disabled = true;
+    $('delete-confirm-btn').innerHTML = '<i class="bi bi-trash"></i> حذف نهائي';
+
+    deleteModal.show();
+}
+
+// تفعيل الزر عند تطابق النص
+$('delete-confirm-input').addEventListener('input', function() {
+    const typed = this.value.trim();
+    $('delete-confirm-btn').disabled = (typed !== deleteTargetDevice);
+});
+
+async function executeDelete() {
+    if (!deleteTargetDevice) return;
+
+    const btn = $('delete-confirm-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> جاري الحذف...';
+
+    try {
+        const res = await api(`/api/devices/${encodeURIComponent(deleteTargetDevice)}/delete`, {
+            method: 'POST'
+        });
+
+        if (res.success) {
+            deleteModal.hide();
+            loadDevices();
+            setTimeout(() => {
+                alert('✅ تم حذف الجهاز ' + deleteTargetDevice + ' بنجاح');
+            }, 300);
+        } else {
+            alert('فشل: ' + (res.error || 'unknown'));
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-trash"></i> حذف نهائي';
+        }
+    } catch (e) {
+        alert('خطأ: ' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-trash"></i> حذف نهائي';
+    }
+}
+
+// ============================================================
+// Init
+// ============================================================
+loadDevices();
+setInterval(loadDevices, 5000);
+</script>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "layout.html" %}
+{% block title %}Logs{% endblock %}
+{% block page_title %}<i class="bi bi-journal-text"></i> السجل الأمني{% endblock %}
+{% block content %}
+<div class="card p-3 mb-3">
+    <div class="row g-2">
+        <div class="col-md-4">
+            <select id="filter-device" class="form-select bg-dark text-light border-secondary">
+                <option value="">كل الأجهزة</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <select id="filter-event" class="form-select bg-dark text-light border-secondary">
+                <option value="">كل الأحداث</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select id="filter-limit" class="form-select bg-dark text-light border-secondary">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="500">500</option>
+            </select>
+        </div>
+        <div class="col-md-2 text-end">
+            <button class="btn btn-outline-secondary w-100" onclick="loadLogs()">
+                <i class="bi bi-arrow-clockwise"></i> تحديث
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive" style="max-height:70vh; overflow-y:auto;">
+        <table class="table table-hover mb-0">
+            <thead style="position:sticky; top:0; background:#1e293b; z-index:1;">
+                <tr>
+                    <th>TIMESTAMP</th><th>DEVICE</th><th>EVENT</th><th>DETAILS</th>
+                </tr>
+            </thead>
+            <tbody id="logs-tbody"><tr><td colspan="4" class="text-center p-4 text-muted">جاري التحميل...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadFilters() {
+    const devices = await api('/api/devices');
+    const devSel = $('filter-device');
+    const curDev = devSel.value;
+    devSel.innerHTML = '<option value="">كل الأجهزة</option>';
+    devices.forEach(d => devSel.innerHTML += `<option value="${d.device_id}">${d.device_id}</option>`);
+    devSel.value = curDev;
+
+    const events = await api('/api/logs/event-types');
+    const evSel = $('filter-event');
+    const curEv = evSel.value;
+    evSel.innerHTML = '<option value="">كل الأحداث</option>';
+    events.forEach(e => evSel.innerHTML += `<option value="${e}">${e}</option>`);
+    evSel.value = curEv;
+}
+
+async function loadLogs() {
+    const device = $('filter-device').value;
+    const event = $('filter-event').value;
+    const limit = $('filter-limit').value;
+    let url = `/api/logs?limit=${limit}`;
+    if (device) url += `&device_id=${encodeURIComponent(device)}`;
+    if (event) url += `&event_type=${encodeURIComponent(event)}`;
+
+    const logs = await api(url);
+    const tbody = $('logs-tbody');
+    tbody.innerHTML = '';
+    if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-muted">لا سجلات</td></tr>';
+        return;
+    }
+    logs.forEach(l => {
+        const color = l.event_type.includes('FAILED') || l.event_type.includes('BLOCKED') || l.event_type.includes('SUSPENDED') ? 'text-danger' :
+                      l.event_type.includes('SUCCESS') || l.event_type.includes('AUTHORIZED') ? 'text-success' : 'text-info';
+        tbody.innerHTML += `
+            <tr>
+                <td class="small text-muted" style="white-space:nowrap;">${new Date(l.timestamp).toLocaleString('ar-EG')}</td>
+                <td><code>${l.device_id}</code></td>
+                <td><code class="${color}">${l.event_type}</code></td>
+                <td class="small">${l.details || ''}</td>
+            </tr>`;
+    });
+}
+
+$('filter-device').addEventListener('change', loadLogs);
+$('filter-event').addEventListener('change', loadLogs);
+$('filter-limit').addEventListener('change', loadLogs);
+
+(async () => {
+    await loadFilters();
+    await loadLogs();
+    setInterval(loadLogs, 5000);
+})();
+</script>
+{% endblock %}

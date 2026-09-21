@@ -1,0 +1,2 @@
+subjectAltName=DNS:localhost,IP:127.0.0.1,IP:192.168.8.114
+extendedKeyUsage=serverAuth

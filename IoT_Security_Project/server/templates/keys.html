@@ -1,0 +1,195 @@
+{% extends "layout.html" %}
+{% block title %}Keys{% endblock %}
+{% block page_title %}<i class="bi bi-key-fill"></i> إدارة المفاتيح{% endblock %}
+{% block content %}
+<div class="row g-3 mb-3">
+    <div class="col-md-4"><div class="card stat-card"><div class="stat-label">إجمالي المفاتيح</div><div class="stat-value stat-primary" id="stat-total">-</div></div></div>
+    <div class="col-md-4"><div class="card stat-card"><div class="stat-label">نشطة</div><div class="stat-value stat-active" id="stat-active">-</div></div></div>
+    <div class="col-md-4"><div class="card stat-card"><div class="stat-label">ملغاة</div><div class="stat-value stat-suspended" id="stat-revoked">-</div></div></div>
+</div>
+
+<div class="card p-3 mb-3">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+            <select id="filter-device" class="form-select bg-dark text-light border-secondary">
+                <option value="">كل الأجهزة</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select id="filter-status" class="form-select bg-dark text-light border-secondary">
+                <option value="">كل الحالات</option>
+                <option value="active">نشط</option>
+                <option value="revoked">ملغى</option>
+                <option value="rotated">مدوّر</option>
+            </select>
+        </div>
+        <div class="col-md-5 text-end">
+            <button class="btn btn-primary" onclick="showGenerateModal()">
+                <i class="bi bi-plus-circle"></i> توليد مفتاح جديد
+            </button>
+            <button class="btn btn-outline-secondary" onclick="loadKeys()">
+                <i class="bi bi-arrow-clockwise"></i> تحديث
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr>
+                <th>KEY_ID</th><th>DEVICE</th><th>PURPOSE</th><th>STATUS</th>
+                <th>CREATED</th><th>EXPIRES</th><th>ACTIONS</th>
+            </tr></thead>
+            <tbody id="keys-tbody"><tr><td colspan="7" class="text-center p-4 text-muted">جاري التحميل...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="generateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title"><i class="bi bi-plus-circle"></i> توليد مفتاح جديد</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">الجهاز</label>
+            <select id="gen-device" class="form-select bg-dark text-light border-secondary"></select>
+        </div>
+        <div class="mb-3"><label class="form-label">الغرض</label>
+            <select id="gen-purpose" class="form-select bg-dark text-light border-secondary">
+                <option value="device_encryption">device_encryption</option>
+                <option value="mqtt_auth">mqtt_auth</option>
+                <option value="api_key">api_key</option>
+            </select>
+        </div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+        <button class="btn btn-primary" onclick="doGenerate()">توليد</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let allKeys = [];
+const genModal = new bootstrap.Modal($('generateModal'));
+
+async function loadStats() {
+    const s = await api('/api/keys/stats');
+    $('stat-total').textContent = s.total;
+    $('stat-active').textContent = s.active;
+    $('stat-revoked').textContent = s.revoked;
+}
+
+async function loadKeys() {
+    allKeys = await api('/api/keys');
+    renderKeys();
+    await loadDevicesForFilter();
+}
+
+async function loadDevicesForFilter() {
+    const devices = await api('/api/devices');
+    const filterSel = $('filter-device');
+    const genSel = $('gen-device');
+    const currentFilter = filterSel.value;
+    filterSel.innerHTML = '<option value="">كل الأجهزة</option>';
+    genSel.innerHTML = '';
+    devices.forEach(d => {
+        filterSel.innerHTML += `<option value="${d.device_id}">${d.device_id}</option>`;
+        genSel.innerHTML += `<option value="${d.device_id}">${d.device_id}</option>`;
+    });
+    filterSel.value = currentFilter;
+}
+
+function renderKeys() {
+    const deviceFilter = $('filter-device').value;
+    const statusFilter = $('filter-status').value;
+    const filtered = allKeys.filter(k => {
+        if (deviceFilter && k.device_id !== deviceFilter) return false;
+        if (statusFilter === 'active' && !k.is_active) return false;
+        if (statusFilter === 'revoked' && !k.revoked_at) return false;
+        if (statusFilter === 'rotated' && !k.rotated_at) return false;
+        return true;
+    });
+    const tbody = $('keys-tbody');
+    tbody.innerHTML = '';
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-muted">لا مفاتيح</td></tr>';
+        return;
+    }
+    filtered.forEach(k => {
+        let status = 'REVOKED', badge = 'badge-REVOKED';
+        if (k.is_active) { status = 'ACTIVE'; badge = 'badge-ACTIVE'; }
+        else if (k.rotated_at) { status = 'ROTATED'; badge = 'badge-LOCKED'; }
+
+        tbody.innerHTML += `
+            <tr>
+                <td><code>${k.key_id.substring(0,8)}...</code></td>
+                <td><code>${k.device_id}</code></td>
+                <td>${k.purpose}</td>
+                <td><span class="badge ${badge}">${status}</span></td>
+                <td class="small text-muted">${new Date(k.created_at).toLocaleString('ar-EG')}</td>
+                <td class="small text-muted">${k.expires_at ? new Date(k.expires_at).toLocaleDateString('ar-EG') : '-'}</td>
+                <td>
+                    ${k.is_active ? `
+                        <button class="btn btn-sm btn-warning" onclick="doRotate('${k.device_id}','${k.purpose}')" title="تدوير">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="doRevoke('${k.key_id}')" title="إلغاء">
+                            <i class="bi bi-x-octagon"></i>
+                        </button>
+                    ` : '-'}
+                </td>
+            </tr>`;
+    });
+}
+
+function showGenerateModal() { genModal.show(); }
+
+async function doGenerate() {
+    const device_id = $('gen-device').value;
+    const purpose = $('gen-purpose').value;
+    if (!device_id) { alert('اختر جهازًا'); return; }
+    const res = await api('/api/keys/generate', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({device_id, purpose})
+    });
+    if (res.success) {
+        genModal.hide();
+        await loadStats(); await loadKeys();
+    } else alert('فشل: ' + res.error);
+}
+
+async function doRotate(device_id, purpose) {
+    if (!confirm(`تدوير المفتاح للجهاز ${device_id}؟`)) return;
+    const res = await api('/api/keys/rotate', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({device_id, purpose})
+    });
+    if (res.success) { await loadStats(); await loadKeys(); }
+    else alert('فشل: ' + res.error);
+}
+
+async function doRevoke(key_id) {
+    if (!confirm('إلغاء هذا المفتاح؟')) return;
+    const res = await api('/api/keys/revoke', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({key_id})
+    });
+    if (res.success) { await loadStats(); await loadKeys(); }
+    else alert('فشل: ' + res.error);
+}
+
+$('filter-device').addEventListener('change', renderKeys);
+$('filter-status').addEventListener('change', renderKeys);
+
+(async () => {
+    await loadStats(); await loadKeys();
+    setInterval(async () => { await loadStats(); await loadKeys(); }, 8000);
+})();
+</script>
+{% endblock %}

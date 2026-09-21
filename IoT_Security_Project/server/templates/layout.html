@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}IoT Key Management{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --sidebar-width: 240px;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-sidebar: #1a2332;
+            --border-color: #334155;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8;
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            margin: 0;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0; right: 0; bottom: 0;
+            width: var(--sidebar-width);
+            background: var(--bg-sidebar);
+            border-left: 1px solid var(--border-color);
+            padding: 20px 0;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .sidebar-logo {
+            text-align: center;
+            padding: 10px 20px 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-logo h5 {
+            color: var(--accent);
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .sidebar-nav {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s;
+            border-right: 3px solid transparent;
+        }
+
+        .sidebar-nav a:hover {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--text-primary);
+        }
+
+        .sidebar-nav a.active {
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--accent);
+            border-right-color: var(--accent);
+        }
+
+        .sidebar-nav i {
+            font-size: 1.2rem;
+            width: 24px;
+            text-align: center;
+        }
+
+        .main-content {
+            margin-right: var(--sidebar-width);
+            padding: 20px 30px;
+            min-height: 100vh;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .topbar h3 {
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .topbar .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .stat-card {
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .stat-primary   { color: var(--accent); }
+        .stat-active    { color: #22c55e; }
+        .stat-locked    { color: #f59e0b; }
+        .stat-suspended { color: #ef4444; }
+        .stat-alerts    { color: #ec4899; }
+
+        .table {
+            --bs-table-bg: transparent;
+            color: var(--text-primary);
+        }
+
+        .table thead th {
+            color: var(--text-secondary);
+            border-color: var(--border-color);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        .table td {
+            border-color: var(--border-color);
+            vertical-align: middle;
+        }
+
+        .badge-ACTIVE    { background: #16a34a; }
+        .badge-LOCKED    { background: #f59e0b; }
+        .badge-SUSPENDED { background: #dc2626; }
+        .badge-REVOKED   { background: #6b7280; }
+
+        code {
+            color: var(--accent);
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .alert-info {
+            background: rgba(56, 189, 248, 0.1);
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(100%); }
+            .main-content { margin-right: 0; }
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <div class="sidebar-logo">
+        <h5><i class="bi bi-shield-lock-fill"></i> IoT Security</h5>
+        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 5px;">
+            Key Management System
+        </div>
+    </div>
+
+    <ul class="sidebar-nav">
+        <li><a href="/" class="{% if active == 'overview' %}active{% endif %}">
+            <i class="bi bi-speedometer2"></i> نظرة عامة
+        </a></li>
+        <li><a href="/devices" class="{% if active == 'devices' %}active{% endif %}">
+            <i class="bi bi-hdd-network"></i> الأجهزة
+        </a></li>
+        <li><a href="/keys" class="{% if active == 'keys' %}active{% endif %}">
+            <i class="bi bi-key-fill"></i> المفاتيح
+        </a></li>
+        <li><a href="/credentials" class="{% if active == 'credentials' %}active{% endif %}">
+            <i class="bi bi-safe-fill"></i> الخزنة
+        </a></li>
+        <li><a href="/provisioning" class="{% if active == 'provisioning' %}active{% endif %}">
+            <i class="bi bi-broadcast"></i> التزويد
+        </a></li>
+        <li><a href="/sessions" class="{% if active == 'sessions' %}active{% endif %}">
+            <i class="bi bi-clock-history"></i> الجلسات
+        </a></li>
+        <li><a href="/logs" class="{% if active == 'logs' %}active{% endif %}">
+            <i class="bi bi-journal-text"></i> السجل الأمني
+        </a></li>
+        <li><a href="/sensors" class="{% if active == 'sensors' %}active{% endif %}">
+            <i class="bi bi-activity"></i> القراءات
+        </a></li>
+        <li><a href="/health" class="{% if active == 'health' %}active{% endif %}">
+            <i class="bi bi-heart-pulse"></i> صحة النظام
+        </a></li>
+        <li><a href="/settings" class="{% if active == 'settings' %}active{% endif %}">
+            <i class="bi bi-gear"></i> الإعدادات
+        </a></li>
+    </ul>
+</aside>
+
+<!-- Main content -->
+<main class="main-content">
+    <div class="topbar">
+        <h3>{% block page_title %}{% endblock %}</h3>
+        <div class="user-info">
+            <span id="clock"></span>
+            <span class="badge bg-secondary">admin</span>
+            <a href="/logout" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-box-arrow-right"></i> خروج
+            </a>
+        </div>
+    </div>
+
+    {% block content %}{% endblock %}
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const $ = id => document.getElementById(id);
+    const api = async (url, opts) => {
+        const r = await fetch(url, opts);
+        return r.json();
+    };
+
+    // Clock
+    setInterval(() => {
+        const el = document.getElementById('clock');
+        if (el) el.textContent = new Date().toLocaleTimeString('ar-EG');
+    }, 1000);
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

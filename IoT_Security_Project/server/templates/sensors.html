@@ -1,0 +1,96 @@
+{% extends "layout.html" %}
+{% block title %}Sensors{% endblock %}
+{% block page_title %}<i class="bi bi-activity"></i> القراءات المباشرة{% endblock %}
+{% block content %}
+<div class="card p-3 mb-3">
+    <div class="row g-2">
+        <div class="col-md-6">
+            <label class="form-label text-muted small">الجهاز</label>
+            <select id="device-select" class="form-select bg-dark text-light border-secondary"></select>
+        </div>
+        <div class="col-md-6 text-end" style="align-self:flex-end;">
+            <button class="btn btn-outline-secondary" onclick="loadReadings()">
+                <i class="bi bi-arrow-clockwise"></i> تحديث
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card p-3 mb-3">
+    <div class="section-title"><i class="bi bi-graph-up"></i> الرسم البياني</div>
+    <canvas id="chart" height="80"></canvas>
+</div>
+
+<div class="card">
+    <div class="card-header bg-transparent border-secondary">
+        <h6 class="mb-0">آخر 30 قراءة</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead><tr><th>TIMESTAMP</th><th>TEMPERATURE</th><th>HUMIDITY</th></tr></thead>
+            <tbody id="readings-tbody"><tr><td colspan="3" class="text-center p-4 text-muted">جاري التحميل...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let chart = null;
+
+async function loadDevices() {
+    const devices = await api('/api/devices');
+    const sel = $('device-select');
+    const cur = sel.value;
+    sel.innerHTML = '';
+    devices.forEach(d => sel.innerHTML += `<option value="${d.device_id}">${d.device_id}</option>`);
+    if (cur) sel.value = cur;
+}
+
+async function loadReadings() {
+    const device = $('device-select').value;
+    if (!device) return;
+
+    const rows = await api(`/api/readings?device_id=${encodeURIComponent(device)}&limit=60`);
+    const labels = rows.map(r => new Date(r.timestamp).toLocaleTimeString('ar-EG'));
+    const temps = rows.map(r => r.temperature);
+    const hums = rows.map(r => r.humidity);
+
+    if (chart) chart.destroy();
+    chart = new Chart($('chart'), {
+        type: 'line',
+        data: { labels, datasets: [
+            { label: 'Temperature (°C)', data: temps, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.15)', tension: 0.3, fill: true },
+            { label: 'Humidity (%)', data: hums, borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)', tension: 0.3, fill: true }
+        ]},
+        options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: '#e2e8f0' } } },
+            scales: {
+                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+            }
+        }
+    });
+
+    // Table
+    const tbody = $('readings-tbody');
+    tbody.innerHTML = '';
+    [...rows].reverse().slice(0, 30).forEach(r => {
+        tbody.innerHTML += `
+            <tr>
+                <td class="small text-muted">${new Date(r.timestamp).toLocaleString('ar-EG')}</td>
+                <td>${r.temperature != null ? r.temperature.toFixed(2) + '°C' : '-'}</td>
+                <td>${r.humidity != null ? r.humidity.toFixed(2) + '%' : '-'}</td>
+            </tr>`;
+    });
+}
+
+$('device-select').addEventListener('change', loadReadings);
+
+(async () => {
+    await loadDevices();
+    await loadReadings();
+    setInterval(loadReadings, 5000);
+})();
+</script>
+{% endblock %}

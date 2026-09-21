@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+{% block title %}Settings{% endblock %}
+{% block page_title %}<i class="bi bi-gear"></i> الإعدادات{% endblock %}
+{% block content %}
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-transparent border-secondary"><h6 class="mb-0"><i class="bi bi-shield-lock"></i> إعدادات الأمان</h6></div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        <tr><th class="text-muted">Dashboard Password</th><td><code>admin123</code></td></tr>
+                        <tr><th class="text-muted">Session TTL</th><td>30 دقيقة</td></tr>
+                        <tr><th class="text-muted">Max Failed Attempts</th><td>3</td></tr>
+                        <tr><th class="text-muted">Lockout Duration</th><td>5 دقائق</td></tr>
+                        <tr><th class="text-muted">Provisioning TTL</th><td>10 دقائق</td></tr>
+                        <tr><th class="text-muted">Key TTL</th><td>365 يومًا</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-transparent border-secondary"><h6 class="mb-0"><i class="bi bi-info-circle"></i> معلومات النظام</h6></div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        <tr><th class="text-muted">Version</th><td>v2.0</td></tr>
+                        <tr><th class="text-muted">Framework</th><td>Flask + Bootstrap 5 + Chart.js</td></tr>
+                        <tr><th class="text-muted">Database</th><td>SQLite</td></tr>
+                        <tr><th class="text-muted">Encryption</th><td>AES-256-Fernet</td></tr>
+                        <tr><th class="text-muted">TLS</th><td>1.2+</td></tr>
+                        <tr><th class="text-muted">MQTT</th><td>Mosquitto 2.x</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-header bg-transparent border-secondary"><h6 class="mb-0"><i class="bi bi-tools"></i> أدوات</h6></div>
+    <div class="card-body">
+        <button class="btn btn-warning" onclick="cleanupSessions()">
+            <i class="bi bi-trash"></i> تنظيف الجلسات المنتهية
+        </button>
+        <button class="btn btn-outline-info ms-2" onclick="window.location.href='/health'">
+            <i class="bi bi-heart-pulse"></i> فحص صحة النظام
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function cleanupSessions() {
+    if (!confirm('تنظيف الجلسات المنتهية؟')) return;
+    const res = await api('/api/sessions/cleanup', {method: 'POST'});
+    if (res.success) alert('تم حذف ' + res.deleted + ' جلسة');
+}
+</script>
+{% endblock %}

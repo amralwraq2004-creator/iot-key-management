@@ -1,0 +1,63 @@
+{% extends "layout.html" %}
+{% block title %}Health{% endblock %}
+{% block page_title %}<i class="bi bi-heart-pulse"></i> صحة النظام{% endblock %}
+{% block content %}
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card stat-card"><div class="stat-label">الأجهزة</div><div class="stat-value stat-primary" id="h-devices">-</div></div></div>
+    <div class="col-md-3"><div class="card stat-card"><div class="stat-label">مفاتيح نشطة</div><div class="stat-value stat-active" id="h-keys">-</div></div></div>
+    <div class="col-md-3"><div class="card stat-card"><div class="stat-label">جلسات نشطة</div><div class="stat-value stat-primary" id="h-sessions">-</div></div></div>
+    <div class="col-md-3"><div class="card stat-card"><div class="stat-label">إجمالي السجلات</div><div class="stat-value stat-alerts" id="h-logs">-</div></div></div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header bg-transparent border-secondary"><h6 class="mb-0"><i class="bi bi-hdd-stack"></i> حالة الخدمات</h6></div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr><th>SERVICE</th><th>PORT</th><th>STATUS</th></tr></thead>
+            <tbody id="services-tbody"><tr><td colspan="3" class="text-center p-4 text-muted">جاري التحميل...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-transparent border-secondary"><h6 class="mb-0"><i class="bi bi-database"></i> قاعدة البيانات</h6></div>
+    <div class="card-body">
+        <table class="table table-sm mb-0">
+            <tbody id="db-info"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadHealth() {
+    const h = await api('/api/health');
+    $('h-devices').textContent = h.devices;
+    $('h-keys').textContent = h.active_keys;
+    $('h-sessions').textContent = h.active_sessions;
+    $('h-logs').textContent = h.total_logs;
+
+    const st = $('services-tbody');
+    st.innerHTML = '';
+    h.services.forEach(s => {
+        const badge = s.status === 'UP' ? 'badge-ACTIVE' : 'badge-SUSPENDED';
+        const icon = s.status === 'UP' ? '🟢' : '🔴';
+        st.innerHTML += `<tr>
+            <td>${icon} ${s.name}</td>
+            <td>${s.port}</td>
+            <td><span class="badge ${badge}">${s.status}</span></td>
+        </tr>`;
+    });
+
+    const di = $('db-info');
+    di.innerHTML = `
+        <tr><th class="text-muted" style="width:200px;">مسار الملف</th><td><code class="small">${h.db_path}</code></td></tr>
+        <tr><th class="text-muted">الحجم</th><td>${h.db_size_kb} KB</td></tr>
+        <tr><th class="text-muted">آخر فحص</th><td>${new Date(h.time).toLocaleString('ar-EG')}</td></tr>
+    `;
+}
+
+loadHealth();
+setInterval(loadHealth, 5000);
+</script>
+{% endblock %}

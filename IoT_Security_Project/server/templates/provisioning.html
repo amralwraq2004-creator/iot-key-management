@@ -1,0 +1,153 @@
+{% extends "layout.html" %}
+{% block title %}Provisioning{% endblock %}
+{% block page_title %}<i class="bi bi-broadcast"></i> إدارة التزويد{% endblock %}
+{% block content %}
+<div class="row g-3 mb-3">
+    <div class="col-md-12 text-end">
+        <button class="btn btn-primary" onclick="showGenModal()">
+            <i class="bi bi-plus-circle"></i> توليد كود تزويد
+        </button>
+        <button class="btn btn-outline-secondary" onclick="loadAll()">
+            <i class="bi bi-arrow-clockwise"></i> تحديث
+        </button>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header bg-transparent border-secondary">
+        <h6 class="mb-0"><i class="bi bi-key"></i> أكواد التزويد</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr>
+                <th>CODE</th><th>DEVICE</th><th>CREATED</th><th>EXPIRES</th><th>STATUS</th>
+            </tr></thead>
+            <tbody id="tokens-tbody"><tr><td colspan="5" class="text-center p-4 text-muted">جاري التحميل...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-transparent border-secondary">
+        <h6 class="mb-0"><i class="bi bi-journal-text"></i> سجل التزويد</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr>
+                <th>TIMESTAMP</th><th>DEVICE</th><th>EVENT</th><th>DETAILS</th>
+            </tr></thead>
+            <tbody id="events-tbody"><tr><td colspan="4" class="text-center p-4 text-muted">جاري التحميل...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="genModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title">توليد كود تزويد</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">الجهاز</label>
+        <select id="gen-device" class="form-select bg-dark text-light border-secondary"></select>
+        <div id="gen-result" class="mt-3" style="display:none">
+            <div class="alert alert-success">
+                <strong>الكود:</strong>
+                <span id="gen-code" style="font-size:1.5rem; font-weight:bold; letter-spacing:3px;"></span>
+                <br><small>صالح لمدة 10 دقائق</small>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+        <button class="btn btn-primary" id="gen-btn" onclick="doGenerate()">توليد</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const genModal = new bootstrap.Modal($('genModal'));
+
+async function loadDevices() {
+    const devices = await api('/api/devices');
+    const sel = $('gen-device');
+    sel.innerHTML = '';
+    devices.forEach(d => sel.innerHTML += `<option value="${d.device_id}">${d.device_id}</option>`);
+}
+
+async function loadTokens() {
+    const tokens = await api('/api/provisioning/tokens');
+    const tbody = $('tokens-tbody');
+    tbody.innerHTML = '';
+    if (tokens.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-muted">لا أكواد</td></tr>';
+        return;
+    }
+    tokens.slice(0, 20).forEach(t => {
+        const status = t.used_at ? 'USED' : (new Date(t.expires_at) < new Date() ? 'EXPIRED' : 'ACTIVE');
+        const badge = t.used_at ? 'badge-REVOKED' : (new Date(t.expires_at) < new Date() ? 'badge-SUSPENDED' : 'badge-ACTIVE');
+        tbody.innerHTML += `
+            <tr>
+                <td><code style="font-size:1.1rem; letter-spacing:2px;">${t.token_masked}</code></td>
+                <td><code>${t.device_id}</code></td>
+                <td class="small text-muted">${new Date(t.created_at).toLocaleString('ar-EG')}</td>
+                <td class="small text-muted">${new Date(t.expires_at).toLocaleString('ar-EG')}</td>
+                <td><span class="badge ${badge}">${status}</span></td>
+            </tr>`;
+    });
+}
+
+async function loadEvents() {
+    const events = await api('/api/provisioning/events?limit=30');
+    const tbody = $('events-tbody');
+    tbody.innerHTML = '';
+    if (events.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-muted">لا أحداث</td></tr>';
+        return;
+    }
+    events.forEach(e => {
+        tbody.innerHTML += `
+            <tr>
+                <td class="small text-muted">${new Date(e.timestamp).toLocaleString('ar-EG')}</td>
+                <td><code>${e.device_id}</code></td>
+                <td><code class="text-info">${e.event_type}</code></td>
+                <td class="small">${e.details || ''}</td>
+            </tr>`;
+    });
+}
+
+async function loadAll() {
+    await loadTokens(); await loadEvents(); await loadDevices();
+}
+
+function showGenModal() {
+    $('gen-result').style.display = 'none';
+    $('gen-btn').disabled = false;
+    genModal.show();
+}
+
+async function doGenerate() {
+    const device_id = $('gen-device').value;
+    if (!device_id) { alert('اختر جهازًا'); return; }
+    $('gen-btn').disabled = true;
+    const res = await api('/api/provisioning/generate', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({device_id})
+    });
+    if (res.success) {
+        $('gen-code').textContent = res.code;
+        $('gen-result').style.display = 'block';
+        await loadTokens(); await loadEvents();
+    } else {
+        alert('فشل: ' + res.error);
+        $('gen-btn').disabled = false;
+    }
+}
+
+loadAll();
+setInterval(loadAll, 8000);
+</script>
+{% endblock %}
